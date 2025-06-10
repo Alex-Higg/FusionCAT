@@ -17,14 +17,14 @@ from ..utils.fuels import Fuel
 def _solve_1d_balance_jit(
     r_grid: np.ndarray, T_i_profile_K: np.ndarray, T_e_profile_K: np.ndarray,
     n_i_profile: np.ndarray, chi_i: float, chi_e: float, fuel_name_is_dt: bool,
-    fuel_energy: float, charged_fraction: float
+    fuel_energy: float, charged_fraction: float, alpha_frac_ions: float
 ) -> tuple:
     """
     Numba-JIT compiled kernel for the 1D power balance calculation.
     This now calls the central reactivity kernel for its physics.
     """
     num_points = len(r_grid)
-    dr = r_grid[1] - r_grid[0]
+    dr = r_grid[1] - r_grid[0] if num_points > 1 else 1.0
     
     # Output arrays
     P_fusion_profile = np.zeros(num_points)
@@ -37,7 +37,7 @@ def _solve_1d_balance_jit(
 
     for i in range(num_points):
         Ti_K, Te_K, ni = T_i_profile_K[i], T_e_profile_K[i], n_i_profile[i]
-        ne = ni # Simplification
+        ne = ni
 
         # --- FUSION POWER ---
         # Call the single, verified reactivity kernel
@@ -49,8 +49,8 @@ def _solve_1d_balance_jit(
         # --- BREMSSTRAHLUNG & EXCHANGE ---
         P_brems_profile[i] = C_B * ne * ni * Te_K**0.5
         log_lambda = 24 - 0.5 * np.log(ne) + 1.5 * np.log(Te_K)
-        p_ie_density_nrl = (1.7e-40 * ne*ni*log_lambda*(Ti_K-Te_K)) / (2.5 * Te_K**1.5)
-        P_ie_exchange_profile[i] = p_ie_density_nrl
+        p_ie_nrl = (1.7e-40 * ne*ni*log_lambda*(Ti_K-Te_K)) / (2.5 * Te_K**1.5)
+        P_ie_exchange_profile[i] = p_ie_nrl
 
     # --- TRANSPORT ---
     grad_Ti = gradient_1d(T_i_profile_K, dr)
@@ -58,17 +58,22 @@ def _solve_1d_balance_jit(
     q_i = -n_i_profile * chi_i * grad_Ti * k_B
     q_e = -n_i_profile * chi_e * grad_Te * k_B # Use n_i for both as per some models
     
-    P_transport_ions = gradient_1d(r_grid * q_i, dr) / r_grid
-    P_transport_electrons = gradient_1d(r_grid * q_e, dr) / r_grid
-    P_transport_ions[0] = 2 * q_i[0] / dr if dr > 0 else 0.0
-    P_transport_electrons[0] = 2 * q_e[0] / dr if dr > 0 else 0.0
+    # Handle r=0 case safely for divergence calculation
+    rq_i = r_grid * q_i
+    rq_e = r_grid * q_e
+    P_transport_ions = gradient_1d(rq_i, dr) / r_grid
+    P_transport_electrons = gradient_1d(rq_e, dr) / r_grid
+    if r_grid[0] == 0:
+        P_transport_ions[0] = 2 * q_i[0] / dr if dr > 0 else 0.0
+        P_transport_electrons[0] = 2 * q_e[0] / dr if dr > 0 else 0.0
 
     # --- POWER BALANCE ---
-    P_alpha_i = P_fusion_profile * charged_fraction * 0.5
-    P_heat_ions_profile = P_transport_ions + P_ie_exchange_profile - P_alpha_i
-
-    P_alpha_e = P_fusion_profile * charged_fraction * 0.5
-    P_heat_electrons_profile = P_transport_electrons + P_brems_profile - P_ie_exchange_profile - P_alpha_e
+    f_alpha_i, f_alpha_e = 0.2, 0.8 # Simple partition for D-T
+    p_alpha_i = P_fusion_profile * charged_fraction * f_alpha_i
+    p_alpha_e = P_fusion_profile * charged_fraction * f_alpha_e
+    
+    P_heat_ions_profile = P_transport_ions + P_ie_exchange_profile - p_alpha_i
+    P_heat_electrons_profile = P_transport_electrons + P_brems_profile - P_ie_exchange_profile - p_alpha_e
 
     return (
         P_fusion_profile, P_brems_profile, P_ie_exchange_profile,

@@ -9,9 +9,12 @@ fusioncat.egg-info/requires.txt
 fusioncat.egg-info/top_level.txt
 fusioncat/analysis/__init__.py
 fusioncat/analysis/scanner.py
+fusioncat/packages/__init__.py
+fusioncat/packages/plasmapy_bridge.py
 fusioncat/physics/__init__.py
 fusioncat/physics/fusion.py
 fusioncat/physics/lawson.py
+fusioncat/physics/numerics.py
 fusioncat/physics/radiation.py
 fusioncat/profiles/__init__.py
 fusioncat/profiles/shapes.py
@@ -21,4 +24,5 @@ fusioncat/utils/__init__.py
 fusioncat/utils/exceptions.py
 fusioncat/utils/fuels.py
 fusioncat/utils/results.py
+tests/test_one_d.py
 tests/test_physics_and_core.py
