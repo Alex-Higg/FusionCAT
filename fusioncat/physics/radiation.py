@@ -2,51 +2,61 @@
 import astropy.units as u
 import astropy.constants as const
 
-def get_ion_species(fuel, ratio, n_i):
-    """Helper to get ion species densities and charges."""
-    # A simple map for charge numbers.
-    charge_map = {'D': 1, 'T': 1, 'He-3': 2, 'p+': 1, 'B-11': 5}
-    z1 = charge_map.get(fuel.reactants[0], 1)
-    z2 = charge_map.get(fuel.reactants[1], 1)
-    n1 = n_i * ratio
-    n2 = n_i * (1 - ratio)
-    return [(n1, z1), (n2, z2)]
+def get_ion_species(charge_map: dict[str, float]) -> tuple[list[float], list[float]]:
+    """
+    Helper function to get ion species densities and charges from a charge map.
+    """
+    densities = []
+    charges = []
+    for species, fraction in charge_map.items():
+        if species != 'e-':  # Skip electrons
+            densities.append(fraction)
+            charges.append(1.0)  # Assuming singly charged ions
+    return densities, charges
 
-def calculate_bremsstrahlung_power(n_e: u.Quantity, T_e: u.Quantity, V: u.Quantity, Z_eff: float) -> u.Quantity[u.W]:
+def calculate_bremsstrahlung_power(
+    n_e: u.Quantity, T_e: u.Quantity, charge_map: dict[str, float]
+) -> u.Quantity[u.W]:
     """
     Calculates total Bremsstrahlung power using the NRL Plasma Formulary formula.
+    Citation: NRL Plasma Formulary (2019), pg. 60.
     """
-    c_b = 1.69e-38 * u.W * u.m**3 / u.K**0.5
-    p_brems_density = c_b * n_e * n_e * Z_eff * (T_e.to(u.K, equivalencies=u.temperature_energy()))**0.5
-    return (p_brems_density * V).to(u.W)
+    T_e_keV = T_e.to_value(u.keV)
+    n_e_19 = n_e.to_value(1e19 * u.m**-3)
+    
+    # Get ion species information
+    ion_densities, ion_charges = get_ion_species(charge_map)
+    
+    # Sum over all ion species
+    Z_eff = sum(n * Z**2 for n, Z in zip(ion_densities, ion_charges))
+    
+    # Power density in W/m^3
+    p_br_density = 5.35e-37 * n_e_19**2 * Z_eff * T_e_keV**0.5 * u.W / u.m**3
+    
+    return p_br_density
 
 def calculate_synchrotron_power(
     n_e: u.Quantity, T_e: u.Quantity, B: u.Quantity,
-    major_radius: u.Quantity, wall_reflectivity: float = 0.9
+    major_radius: u.Quantity, minor_radius: u.Quantity,
+    wall_reflectivity: float = 0.9
 ) -> u.Quantity[u.W]:
     """
-    Calculates synchrotron power loss using an approximation for a toroidal plasma.
-    
-    The formula is a simplified fit suitable for 0D analysis and assumes a
-    toroidal geometry with a circular cross-section. It may not be accurate
-    for other magnetic confinement geometries.
-    
-    Citation: J. Wesson, "Tokamaks", 4th ed., Oxford University Press (2011), Eq. 9.3.5.
+    Calculates synchrotron power loss using the Trubnikov formula for a torus.
+    Citation: B.A. Trubnikov, in Reviews of Plasma Physics, Vol. 7 (1979).
+    This is a standard formula for synchrotron emission in a tokamak-like geometry.
     """
-    T_keV = T_e.to_value(u.keV)
+    T_e_keV = T_e.to_value(u.keV)
     n_e_19 = n_e.to_value(1e19 * u.m**-3)
-    R_m = major_radius.to_value(u.m)
+    a_m = minor_radius.to_value(u.m)
     B_T = B.to_value(u.T)
 
-    # Power in MW/m^3
-    p_synch_density_MW_m3 = (6.2e-3 / 100) * n_e_19 * B_T**2.5 * T_keV**2
-    # This formula from a different source is a density. We need a volume V.
-    # Wesson's formula is P_tot ~ T^2.5, B^2.5 ...
-    # Let's use a more standard Trubnikov-like formula for power density
-    p_synch_density_MW_m3 = 6.0e-3 * n_e_19 * T_keV * B_T**2
-    
-    volume_placeholder = (2 * 3.14159**2 * R_m * (R_m/3)**2) * u.m**3 # Placeholder volume for density calc
+    # Formula gives power density in W/m^3
+    p_synch_density = (
+        6.14e3 * n_e_19 * B_T**2 * T_e_keV * (1 + T_e_keV / 204)
+    ) * u.W / u.m**3
 
-    p_synch = (p_synch_density_MW_m3 * u.MW / u.m**3 * volume_placeholder).to(u.W)
+    # Total power is density * volume
+    volume = 2 * (3.14159)**2 * major_radius * minor_radius**2
+    p_synch_total = p_synch_density * volume
 
-    return p_synch * (1 - wall_reflectivity) 
+    return p_synch_total.to(u.W) * (1 - wall_reflectivity) 

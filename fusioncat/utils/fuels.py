@@ -1,30 +1,51 @@
 # fusioncat/utils/fuels.py
 from dataclasses import dataclass
+from typing import Sequence, Tuple
 import astropy.units as u
 
 @dataclass(frozen=True)
 class Fuel:
+    """Represents a fusion fuel with its properties."""
     name: str
-    reactants: tuple[str, str]
-    energy_per_reaction: u.Quantity[u.J]
+    reactants: Sequence[str]
+    energy_per_reaction: u.Quantity
     charged_particle_fraction: float
-    citation: str
+    alpha_heating_fractions: Tuple[float, float] = (0.5, 0.5)  # (ion fraction, electron fraction)
+    citation: str = ""
 
-NRL_FORMULARY_CITATION = "J.D. Huba, NRL Plasma Formulary (2019)."
-
+# Define common fusion fuels
 FUEL_DT = Fuel(
-    name='D-T', reactants=('D', 'T'), energy_per_reaction=(17.59 * u.MeV).to(u.J),
-    charged_particle_fraction=3.5 / 17.59, citation=NRL_FORMULARY_CITATION
+    name="D-T",
+    reactants=["D", "T"],
+    energy_per_reaction=17.6 * u.MeV,
+    charged_particle_fraction=0.2,  # 3.5 MeV / 17.6 MeV
+    alpha_heating_fractions=(0.5, 0.5),  # 50-50 split between ions and electrons
+    citation="NRL Plasma Formulary (2019)"
 )
+
 FUEL_DD = Fuel(
-    name='D-D', reactants=('D', 'D'), energy_per_reaction=(3.65 * u.MeV).to(u.J),
-    charged_particle_fraction=2.425 / 3.65, citation=f"Avg. of two branches, {NRL_FORMULARY_CITATION}"
+    name="D-D",
+    reactants=["D", "D"],
+    energy_per_reaction=4.03 * u.MeV,
+    charged_particle_fraction=0.66,  # 2.66 MeV / 4.03 MeV
+    alpha_heating_fractions=(0.5, 0.5),
+    citation="NRL Plasma Formulary (2019)"
 )
+
 FUEL_DHE3 = Fuel(
-    name='D-He3', reactants=('D', 'He-3'), energy_per_reaction=(18.35 * u.MeV).to(u.J),
-    charged_particle_fraction=1.0, citation=NRL_FORMULARY_CITATION
+    name="D-He3",
+    reactants=["D", "He3"],
+    energy_per_reaction=18.3 * u.MeV,
+    charged_particle_fraction=0.95,  # 17.4 MeV / 18.3 MeV
+    alpha_heating_fractions=(0.5, 0.5),
+    citation="NRL Plasma Formulary (2019)"
 )
+
 FUEL_PB11 = Fuel(
-    name='p-B11', reactants=('p+', 'B-11'), energy_per_reaction=(8.7 * u.MeV).to(u.J),
-    charged_particle_fraction=1.0, citation="W. L. Reiter, AIP Conf. Proc. 1525, 29 (2013)."
+    name="p-B11",
+    reactants=["p", "B11"],
+    energy_per_reaction=8.7 * u.MeV,
+    charged_particle_fraction=1.0,  # All energy in charged particles
+    alpha_heating_fractions=(0.5, 0.5),
+    citation="NRL Plasma Formulary (2019)"
 ) 
