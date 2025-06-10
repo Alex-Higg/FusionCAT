@@ -1,11 +1,14 @@
 # fusioncat/core.py
 import astropy.units as u
 import astropy.constants as const
+import numpy as np
 from .utils.exceptions import ConfigurationError
-from .utils.results import ZeroDResults
+from .utils.results import ZeroDResults, OneDResults
 from .physics.fusion import calculate_fusion_power
 from .physics.radiation import calculate_bremsstrahlung_power, calculate_synchrotron_power, get_ion_species
 from .physics.lawson import calculate_triple_product, calculate_ion_electron_exchange
+from .solvers.one_d import solve_steady_state_1d
+from .profiles.shapes import parabolic_profile
 
 class FusionConcept:
     def __init__(self, name: str):
@@ -76,4 +79,49 @@ class FusionConcept:
             fusion_gain_q=q_plasma,
             ion_electron_exchange_power=p_ie_exchange,
             triple_product=calculate_triple_product(n_i, T_i, tau_Ei)
+        )
+
+    def run_1d_analysis(self, num_points=101, T_alpha=1.5, n_alpha=1.0):
+        """
+        Runs the 1D steady-state power balance analysis.
+        """
+        # Extract base parameters
+        a = self.params['minor_radius']
+        T_i_core, T_e_core = self.params['ion_temperature'], self.params['electron_temperature']
+        n_i_core = self.params['ion_density']
+        chi_i, chi_e = self.params['ion_diffusivity'], self.params['electron_diffusivity']
+        fuel = self.params['fuel']
+
+        # Create radial grid
+        r_grid_norm = np.linspace(0, 1, num_points)
+        r_grid = r_grid_norm * a
+
+        # Generate plasma profiles
+        realistic_edge_temp_keV = 0.01  # 10 eV
+        T_i_profile = parabolic_profile(r_grid_norm, T_i_core.to_value(u.keV), realistic_edge_temp_keV, T_alpha) * u.keV
+        T_e_profile = parabolic_profile(r_grid_norm, T_e_core.to_value(u.keV), realistic_edge_temp_keV, T_alpha) * u.keV
+        
+        n_i_profile = parabolic_profile(r_grid_norm, n_i_core.to_value(u.m**-3), 1e18, n_alpha) / u.m**3
+        
+        # --- THIS IS THE CORRECTED SECTION ---
+        # The solver calculates n_e internally based on n_i. We do not need to pass it.
+        # The call now correctly has 7 arguments.
+        (
+            p_fusion, p_brems, p_ie, p_trans_i, p_trans_e,
+            p_heat_i, p_heat_e
+        ) = solve_steady_state_1d(
+            r_grid, T_i_profile, T_e_profile, n_i_profile,
+            chi_i, chi_e, fuel
+        )
+        # ------------------------------------
+        
+        return OneDResults(
+            radius_grid=r_grid, T_i_profile=T_i_profile, T_e_profile=T_e_profile,
+            n_i_profile=n_i_profile,
+            # For completeness, we add n_e_profile to the results object here
+            n_e_profile=n_i_profile, 
+            fusion_power_profile=p_fusion, bremsstrahlung_power_profile=p_brems,
+            ion_heat_flux_profile=p_trans_i, electron_heat_flux_profile=p_trans_e,
+            ion_electron_exchange_profile=p_ie, ion_heating_profile=p_heat_i,
+            electron_heating_profile=p_heat_e
         ) 

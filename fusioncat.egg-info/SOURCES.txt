@@ -7,10 +7,16 @@ fusioncat.egg-info/SOURCES.txt
 fusioncat.egg-info/dependency_links.txt
 fusioncat.egg-info/requires.txt
 fusioncat.egg-info/top_level.txt
+fusioncat/analysis/__init__.py
+fusioncat/analysis/scanner.py
 fusioncat/physics/__init__.py
 fusioncat/physics/fusion.py
 fusioncat/physics/lawson.py
 fusioncat/physics/radiation.py
+fusioncat/profiles/__init__.py
+fusioncat/profiles/shapes.py
+fusioncat/solvers/__init__.py
+fusioncat/solvers/one_d.py
 fusioncat/utils/__init__.py
 fusioncat/utils/exceptions.py
 fusioncat/utils/fuels.py

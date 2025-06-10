@@ -4,7 +4,7 @@ import matplotlib.colors as colors
 import astropy.units as u
 import numpy as np
 
-from .utils.results import ZeroDResults
+from .utils.results import ZeroDResults, OneDResults
 from .analysis.scanner import ScanResults
 
 plt.style.use('seaborn-v0_8-talk')
@@ -13,7 +13,12 @@ def plot_power_balance(results: ZeroDResults, name: str, save_path: str = None):
     """Generates a bar chart comparing power sources and losses."""
     fig, ax = plt.subplots(figsize=(12, 8))
     sources = {'Self-Heating': results.charged_particle_power.to(u.MW), 'External Heating': results.required_heating_power.to(u.MW)}
-    losses = {'Bremsstrahlung': results.bremsstrahlung_power.to(u.MW), 'Synchrotron': results.synchrotron_power.to(u.MW), 'Transport': results.confinement_loss_power.to(u.MW)}
+    losses = {
+        'Bremsstrahlung': results.bremsstrahlung_power.to(u.MW),
+        'Synchrotron': results.synchrotron_power.to(u.MW),
+        'Ion Transport': results.ion_confinement_loss.to(u.MW),
+        'Electron Transport': results.electron_confinement_loss.to(u.MW)
+    }
     ax.bar(sources.keys(), sources.values(), label='Power Sources', color='g', width=0.4)
     ax.bar(losses.keys(), losses.values(), label='Power Losses', color='r', width=0.4, alpha=0.7)
     ax.set_ylabel('Power (MW)')
@@ -114,6 +119,39 @@ def plot_3d_scan(scan_results: ScanResults, log_scale: bool = True, save_path: s
     
     ax.set_xlabel(x_label); ax.set_ylabel(y_label); ax.set_zlabel(z_label)
     ax.set_title(f"Surface Plot of {scan_results.output_metric.replace('_', ' ').title()}")
+    fig.tight_layout()
+    if save_path: plt.savefig(save_path)
+    plt.show()
+
+def plot_1d_profiles(results: OneDResults, save_path: str = None):
+    """Plots the key output profiles from a 1D analysis."""
+    r_norm = results.radius_grid / results.radius_grid[-1]
+    
+    fig, axes = plt.subplots(3, 1, figsize=(10, 18), sharex=True)
+    
+    # Temperatures
+    axes[0].plot(r_norm, results.T_i_profile.to_value(u.keV), label='$T_i$')
+    axes[0].plot(r_norm, results.T_e_profile.to_value(u.keV), label='$T_e$')
+    axes[0].set_ylabel('Temperature [keV]')
+    axes[0].legend()
+    axes[0].grid(True, linestyle=':')
+    
+    # Densities
+    axes[1].plot(r_norm, results.n_i_profile.to_value(1e20 / u.m**3), label='$n_i$')
+    axes[1].set_ylabel('Density [$10^{20} m^{-3}$]')
+    axes[1].legend()
+    axes[1].grid(True, linestyle=':')
+    
+    # Power Densities
+    axes[2].plot(r_norm, results.fusion_power_profile.to_value(u.MW/u.m**3), label='$P_{fusion}$')
+    axes[2].plot(r_norm, results.ion_heating_profile.to_value(u.MW/u.m**3), label='$P_{heat,i}$', linestyle='--')
+    axes[2].plot(r_norm, results.electron_heating_profile.to_value(u.MW/u.m**3), label='$P_{heat,e}$', linestyle='--')
+    axes[2].plot(r_norm, results.bremsstrahlung_power_profile.to_value(u.MW/u.m**3), label='$P_{brems}$', linestyle=':')
+    axes[2].set_ylabel('Power Density [$MW/m^3$]')
+    axes[2].legend()
+    axes[2].grid(True, linestyle=':')
+    
+    axes[2].set_xlabel('Normalized Radius (r/a)')
     fig.tight_layout()
     if save_path: plt.savefig(save_path)
     plt.show()
