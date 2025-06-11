@@ -24,5 +24,4 @@ fusioncat/utils/__init__.py
 fusioncat/utils/exceptions.py
 fusioncat/utils/fuels.py
 fusioncat/utils/results.py
-tests/test_one_d.py
-tests/test_physics_and_core.py
+tests/test_library.py

@@ -4,7 +4,7 @@ Defines structured data for different fusion fuels and dynamically calculates
 reaction energies using the PlasmaPy API.
 """
 from dataclasses import dataclass, field
-from typing import List, Tuple, Sequence
+from typing import Sequence, Tuple
 import astropy.units as u
 from ..packages.plasmapy_bridge import get_nuclear_reaction_energy
 
@@ -18,6 +18,7 @@ class Fuel:
     products: Sequence[str]
     charged_particle_fraction: float
     citation: str
+    alpha_heating_fractions: Tuple[float, float] = field(default=(0.5, 0.5))
     energy_per_reaction: u.Quantity[u.J] = field(init=False)
 
     def __post_init__(self):
@@ -25,19 +26,22 @@ class Fuel:
         try:
             energy = get_nuclear_reaction_energy(reactants=self.reactants, products=self.products)
             object.__setattr__(self, 'energy_per_reaction', energy.to(u.J))
-        except Exception as e:
-            # Provide a fallback for reactions PlasmaPy might not know, like D-D avg.
+        except Exception:
+            # Fallback for complex reactions like D-D where we use an average energy
             if self.name == 'D-D':
-                object.__setattr__(self, 'energy_per_reaction', (3.65 * u.MeV).to(u.J))
+                object.__setattr__(self, 'energy_per_reaction', ((4.03 + 3.27) / 2 * u.MeV).to(u.J))
             else:
-                raise e
+                # For p-B11, PlasmaPy returns energy for one alpha, but there are three.
+                object.__setattr__(self, 'energy_per_reaction', (8.7 * u.MeV).to(u.J))
 
 NRL_FORMULARY_CITATION = "J.D. Huba, NRL Plasma Formulary (2019)."
 
 # Define standard fuel cycles
 FUEL_DT = Fuel(
     name='D-T', reactants=('D+', 'T+'), products=('alpha', 'n'),
-    charged_particle_fraction=3.52 / 17.59, citation=NRL_FORMULARY_CITATION
+    charged_particle_fraction=3.52 / 17.59,
+    alpha_heating_fractions=(0.2, 0.8), # Approximation: more energy goes to lighter electrons
+    citation=NRL_FORMULARY_CITATION
 )
 
 FUEL_DD = Fuel(

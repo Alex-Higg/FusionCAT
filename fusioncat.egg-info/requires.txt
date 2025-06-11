@@ -1,6 +1,7 @@
+plasmapy
 astropy
 numpy
 scipy
 matplotlib
-pytest
 numba
+pytest

@@ -1,4 +1,3 @@
 """
-Package containing bridges to external dependencies.
-These modules isolate our code from third-party library changes.
+Package containing external library bridges and interfaces.
 """ 
