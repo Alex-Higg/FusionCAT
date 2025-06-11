@@ -34,14 +34,15 @@ class Fuel:
             else:
                 raise
 
-NRL_FORMULARY_CITATION = "J.D. Huba, NRL Plasma Formulary (2019)."
+NRL_FORMULARY_CITATION = "J.D. Huba, NRL Plasma Formulary (2019)"
+NEVINS_CITATION = "W. M. Nevins & R. Swain, Nuclear Fusion, Vol. 40 (2000)"
 
 # Define standard fuel cycles
 FUEL_DT = Fuel(
     name='D-T', reactants=('D+', 'T+'), products=('alpha', 'n'),
     charged_particle_fraction=3.52 / 17.59,
     alpha_heating_fractions=(0.2, 0.8), # Approximation: more energy goes to lighter electrons
-    citation="H.-S. Bosch, G.M. Hale, Nuclear Fusion (1992)"
+    citation=NRL_FORMULARY_CITATION
 )
 
 FUEL_DD = Fuel(
@@ -56,5 +57,5 @@ FUEL_DHE3 = Fuel(
 
 FUEL_PB11 = Fuel(
     name='p-B11', reactants=('p+', 'B-11 5+'), products=('alpha', 'alpha', 'alpha'),
-    charged_particle_fraction=1.0, citation="W. M. Nevins & R. Swain, Nuclear Fusion (2000)"
+    charged_particle_fraction=1.0, citation=NEVINS_CITATION
 ) 
