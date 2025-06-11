@@ -1,58 +1,50 @@
 # fusioncat/physics/fusion.py
 import astropy.units as u
 import numpy as np
-from numba import jit
 from ..utils.fuels import Fuel
-
-@jit(nopython=True, cache=True)
-def _reactivity_dt_jit(T_keV: float) -> float:
-    if T_keV < 0.2: return 0.0
-    BG = 34.3827
-    C = np.array([1.17302E-9, 1.51361E-2, 7.51886E-2, 4.60643E-3, 1.35E-2, -1.06750E-4, 1.366E-6])
-    theta = T_keV / (1.0 - T_keV * (C[2] + T_keV * (C[4] + T_keV * C[6])) / (1.0 + T_keV * (C[3] + T_keV * C[5])))
-    if theta <= 0: return 0.0
-    xi = BG / (theta**0.5)
-    val = C[0] * theta**(-2/3) * np.exp(-xi)
-    return val / 1e6 # cm^3/s to m^3/s
-
-@jit(nopython=True, cache=True)
-def _reactivity_dd_jit(T_keV: float) -> float:
-    if T_keV <= 0: return 0.0
-    A = np.array([5.36e-12, 5.62e-12]); B = np.array([65.85, 64.63])
-    term1 = A[0] * T_keV**(-2/3) * np.exp(-B[0] / T_keV**(1/3))
-    term2 = A[1] * T_keV**(-2/3) * np.exp(-B[1] / T_keV**(1/3))
-    return (term1 + term2) / 1e6
-
-@jit(nopython=True, cache=True)
-def _reactivity_dhe3_jit(T_keV: float) -> float:
-    if T_keV <= 0: return 0.0
-    A, B = 5.51e-10, 89.87
-    val = A * T_keV**(-2/3) * np.exp(-B / T_keV**(1/3))
-    return val / 1e6
-
-@jit(nopython=True, cache=True)
-def _reactivity_pb11_jit(T_keV: float) -> float:
-    if T_keV <= 10.0: return 0.0
-    T100 = T_keV / 100.0
-    term1 = 4.86e-23 / (T_keV**0.5 * T100**0.5) * np.exp(-14.5 / T100**0.5)
-    term2 = 8.75e-24 / (1 + (T_keV/50.0)**2)
-    return term1 + term2 # Already in m^3/s
 
 def calculate_reactivity(fuel: Fuel, T_i: u.Quantity, reactivity_enhancement_factor: float = 1.0) -> u.Quantity:
     T_keV = T_i.to_value(u.keV)
-    val = 0.0
-    if fuel.name == 'D-T': val = _reactivity_dt_jit(T_keV)
-    elif fuel.name == 'D-D': val = _reactivity_dd_jit(T_keV)
-    elif fuel.name == 'D-He3': val = _reactivity_dhe3_jit(T_keV)
-    elif fuel.name == 'p-B11': val = _reactivity_pb11_jit(T_keV) * reactivity_enhancement_factor
-    else: raise NotImplementedError(f"Reactivity for {fuel.name} not implemented.")
-    return val * u.m**3 / u.s
+    if T_keV <= 0: return 0 * u.m**3 / u.s
+    
+    sigma_v_cm3_s = 0.0
+
+    if fuel.name == 'D-T':
+        # Formula from H.-S. Bosch, G.M. Hale, Nuclear Fusion, Vol. 32, No. 4 (1992)
+        BG = 34.3827; C = [1.17302E-9, 1.51361E-2, 7.51886E-2, 4.60643E-3, 1.35E-2, -1.06750E-4, 1.366E-6]
+        theta = T_keV / (1. - T_keV * (C[2] + T_keV * (C[4] + T_keV * C[6])) / (1. + T_keV * (C[3] + T_keV * C[5])))
+        if theta <= 0: return 0 * u.m**3 / u.s
+        xi = BG / (theta**0.5)
+        sigma_v_cm3_s = C[0] * theta**(-2/3) * np.exp(-xi)
+    elif fuel.name == 'D-D':
+        # Sum of analytical fits for both D-D branches, NRL Plasma Formulary (2019)
+        A1, B1 = 5.36e-12, 65.85; A2, B2 = 5.62e-12, 64.63
+        term1 = A1 * T_keV**(-2/3) * np.exp(-B1 / T_keV**(1/3)); term2 = A2 * T_keV**(-2/3) * np.exp(-B2 / T_keV**(1/3))
+        sigma_v_cm3_s = term1 + term2
+    elif fuel.name == 'D-He3':
+        # Analytical fit from NRL Plasma Formulary (2019).
+        A, B = 5.51e-10, 89.87
+        sigma_v_cm3_s = A * T_keV**(-2/3) * np.exp(-B / T_keV**(1/3))
+    elif fuel.name == 'p-B11':
+        # Analytical fit from W. M. Nevins & R. Swain, Nuclear Fusion, Vol. 40, No. 4 (2000)
+        T100 = T_keV / 100.0; B0, B1, B2, B3 = -10.4, -1.05, 3.84, -0.48
+        C_vals = [8.95e-23, 1.37e-23, 6.42e-26]
+        T_log = np.log(T_keV)
+        sigma_v_m3_s = C_vals[0]*np.exp(B0+B1*T_log+B2*T_log**2+B3*T_log**3) + C_vals[1]*T_keV**(-0.75)*np.exp(-25.7/T_keV**0.25) + C_vals[2]
+    else:
+        raise NotImplementedError(f"Reactivity for {fuel.name} not implemented.")
+
+    reactivity = (sigma_v_cm3_s * u.cm**3 / u.s).to(u.m**3 / u.s)
+    if fuel.name == 'p-B11':
+        reactivity *= reactivity_enhancement_factor
+    return reactivity
 
 def calculate_fusion_power(n_i, T_i, V, fuel, ratio, reactivity_enhancement_factor=1.0):
     sigma_v = calculate_reactivity(fuel, T_i, reactivity_enhancement_factor)
     n1, n2 = n_i * ratio, n_i * (1 - ratio)
     factor = 0.5 if fuel.reactants[0] == fuel.reactants[1] else 1.0
-    power_density = factor * n1 * n2 * sigma_v * fuel.energy_per_reaction
+    effective_energy = ((4.03 + 3.27) / 2 * u.MeV).to(u.J) if fuel.name == 'D-D' else fuel.energy_per_reaction
+    power_density = factor * n1 * n2 * sigma_v * effective_energy
     p_fusion_total = (power_density * V).to(u.W)
     p_charged_particles = p_fusion_total * fuel.charged_particle_fraction
     return p_fusion_total, p_charged_particles

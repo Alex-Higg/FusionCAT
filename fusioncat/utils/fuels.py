@@ -27,12 +27,12 @@ class Fuel:
             energy = get_nuclear_reaction_energy(reactants=self.reactants, products=self.products)
             object.__setattr__(self, 'energy_per_reaction', energy.to(u.J))
         except Exception:
-            # Fallback for complex reactions like D-D where we use an average energy
             if self.name == 'D-D':
                 object.__setattr__(self, 'energy_per_reaction', ((4.03 + 3.27) / 2 * u.MeV).to(u.J))
-            else:
-                # For p-B11, PlasmaPy returns energy for one alpha, but there are three.
+            elif self.name == 'p-B11':
                 object.__setattr__(self, 'energy_per_reaction', (8.7 * u.MeV).to(u.J))
+            else:
+                raise
 
 NRL_FORMULARY_CITATION = "J.D. Huba, NRL Plasma Formulary (2019)."
 
@@ -41,12 +41,12 @@ FUEL_DT = Fuel(
     name='D-T', reactants=('D+', 'T+'), products=('alpha', 'n'),
     charged_particle_fraction=3.52 / 17.59,
     alpha_heating_fractions=(0.2, 0.8), # Approximation: more energy goes to lighter electrons
-    citation=NRL_FORMULARY_CITATION
+    citation="H.-S. Bosch, G.M. Hale, Nuclear Fusion (1992)"
 )
 
 FUEL_DD = Fuel(
     name='D-D', reactants=('D+', 'D+'), products=('T+', 'p+'),
-    charged_particle_fraction=0.66, citation=f"Branching ratios from {NRL_FORMULARY_CITATION}"
+    charged_particle_fraction=0.66, citation=f"Avg. of branches, {NRL_FORMULARY_CITATION}"
 )
 
 FUEL_DHE3 = Fuel(
@@ -56,5 +56,5 @@ FUEL_DHE3 = Fuel(
 
 FUEL_PB11 = Fuel(
     name='p-B11', reactants=('p+', 'B-11 5+'), products=('alpha', 'alpha', 'alpha'),
-    charged_particle_fraction=1.0, citation="W. M. Nevins & R. Swain, Nuclear Fusion, Vol. 40, No. 4 (2000)"
+    charged_particle_fraction=1.0, citation="W. M. Nevins & R. Swain, Nuclear Fusion (2000)"
 ) 
