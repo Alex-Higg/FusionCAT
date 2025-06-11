@@ -1,0 +1,10 @@
+Physics Models
+==============
+
+This section describes the core physics models used within FusionCAT for the 0D power balance calculations.
+
+.. toctree::
+   :maxdepth: 2
+
+   power_balance
+   particle_balance 

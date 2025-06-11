@@ -16,4 +16,6 @@ class ZeroDResults:
     triple_product: u.Quantity
     ion_temperature: u.Quantity[u.keV]
     electron_temperature: u.Quantity[u.keV]
-    ion_electron_exchange_power: u.Quantity[u.W] 
+    ion_electron_exchange_power: u.Quantity[u.W]
+    ash_fraction: float
+    fuel_burnup_fraction: float 
